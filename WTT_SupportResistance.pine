@@ -36,10 +36,15 @@ show_ln_overlap = input.bool(true, "London/New York Overlap", group = "Market Se
 show_st_overlap = input.bool(true, "Sydney/Tokyo Overlap", group = "Market Sessions")
 
 // Customizable Overlap Times (in EST)
-ln_overlap_start = input.int(8, "London/NY Overlap Start (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="Start hour for London/NY overlap (0-23)")
-ln_overlap_end = input.int(11, "London/NY Overlap End (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="End hour for London/NY overlap (0-23)")
-st_overlap_start = input.int(20, "Sydney/Tokyo Overlap Start (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="Start hour for Sydney/Tokyo overlap (0-23)")
-st_overlap_end = input.int(3, "Sydney/Tokyo Overlap End (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="End hour for Sydney/Tokyo overlap (0-23)")
+ln_overlap_start_hour = input.int(8, "London/NY Overlap Start Hour (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="Start hour for London/NY overlap (0-23)")
+ln_overlap_start_min = input.int(0, "London/NY Overlap Start Minute (EST)", minval=0, maxval=45, step=15, group="Market Sessions", tooltip="Start minute for London/NY overlap (0, 15, 30, 45)")
+ln_overlap_end_hour = input.int(11, "London/NY Overlap End Hour (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="End hour for London/NY overlap (0-23)")
+ln_overlap_end_min = input.int(0, "London/NY Overlap End Minute (EST)", minval=0, maxval=45, step=15, group="Market Sessions", tooltip="End minute for London/NY overlap (0, 15, 30, 45)")
+
+st_overlap_start_hour = input.int(20, "Sydney/Tokyo Overlap Start Hour (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="Start hour for Sydney/Tokyo overlap (0-23)")
+st_overlap_start_min = input.int(0, "Sydney/Tokyo Overlap Start Minute (EST)", minval=0, maxval=45, step=15, group="Market Sessions", tooltip="Start minute for Sydney/Tokyo overlap (0, 15, 30, 45)")
+st_overlap_end_hour = input.int(3, "Sydney/Tokyo Overlap End Hour (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="End hour for Sydney/Tokyo overlap (0-23)")
+st_overlap_end_min = input.int(0, "Sydney/Tokyo Overlap End Minute (EST)", minval=0, maxval=45, step=15, group="Market Sessions", tooltip="End minute for Sydney/Tokyo overlap (0, 15, 30, 45)")
 
 box_amount = input.int(125, 'Amount', step = 10, tooltip = "Set the displayed amount of liquidity zones")
 color_high_sup = input.color(color.gray, '↑', inline = 'sup', group = 'Color')  // Changed to a grayer purple/blue
@@ -54,7 +59,7 @@ alert_threshold_med = input.float(3, "Medium Liquidity Threshold", minval=1, max
 alert_threshold_high = input.float(7, "High Liquidity Threshold", minval=1, maxval=10, step=0.1, group = "Alert Settings", tooltip="Volume strength value to consider as high liquidity (default: 7)")
 
 // Toggle settings for Low liquidity zones
-show_low_liquidity = input.bool(true, "Show Low Liquidity Zones", group = "Display Settings", tooltip="Toggle visibility of low liquidity zones")
+show_low_liquidity = input.bool(false, "Show Low Liquidity Zones", group = "Display Settings", tooltip="Toggle visibility of low liquidity zones")
 
 // Daily High/Low settings
 show_daily_levels = input.bool(true, "Show Daily High/Low", group = "Daily Levels", tooltip="Display the highest high and lowest low of the current trading day")
@@ -70,36 +75,50 @@ daily_level_style = input.string("Dashed", "Line Style", options=["Solid", "Dash
 // Market session detection functions
 is_london_session() =>
     hour = hour(time, "UTC-4")  // EST timezone
+    minute = minute(time, "UTC-4")
     result = hour >= 3 and hour < 12
     result
 
 is_ny_session() =>
     hour = hour(time, "UTC-4")  // EST timezone
+    minute = minute(time, "UTC-4")
     result = hour >= 8 and hour < 17
     result
 
 is_london_ny_overlap() =>
     hour = hour(time, "UTC-4")  // EST timezone
-    result = ln_overlap_end > ln_overlap_start ? 
-        (hour >= ln_overlap_start and hour < ln_overlap_end) : 
-        (hour >= ln_overlap_start or hour < ln_overlap_end)
+    minute = minute(time, "UTC-4")
+    current_time = hour * 60 + minute
+    start_time = ln_overlap_start_hour * 60 + ln_overlap_start_min
+    end_time = ln_overlap_end_hour * 60 + ln_overlap_end_min
+    
+    result = end_time > start_time ? 
+     (current_time >= start_time and current_time < end_time) : 
+     (current_time >= start_time or current_time < end_time)
     result
 
 is_sydney_session() =>
     hour = hour(time, "UTC-4")  // EST timezone
+    minute = minute(time, "UTC-4")
     result = hour >= 18 or hour < 3
     result
 
 is_tokyo_session() =>
     hour = hour(time, "UTC-4")  // EST timezone
+    minute = minute(time, "UTC-4")
     result = hour >= 19 or hour < 4
     result
 
 is_sydney_tokyo_overlap() =>
     hour = hour(time, "UTC-4")  // EST timezone
-    result = st_overlap_end > st_overlap_start ? 
-        (hour >= st_overlap_start and hour < st_overlap_end) : 
-        (hour >= st_overlap_start or hour < st_overlap_end)
+    minute = minute(time, "UTC-4")
+    current_time = hour * 60 + minute
+    start_time = st_overlap_start_hour * 60 + st_overlap_start_min
+    end_time = st_overlap_end_hour * 60 + st_overlap_end_min
+    
+    result = end_time > start_time ? 
+     (current_time >= start_time and current_time < end_time) : 
+     (current_time >= start_time or current_time < end_time)
     result
 
 is_active_session() =>
@@ -107,7 +126,7 @@ is_active_session() =>
         true
     else
         (show_ln_overlap and is_london_ny_overlap()) or 
-        (show_st_overlap and is_sydney_tokyo_overlap())
+     (show_st_overlap and is_sydney_tokyo_overlap())
     result
 
 // Normalize volume
@@ -147,8 +166,8 @@ process_zones(boxes, levels, is_resistance) =>
             
             // Check if price has broken the zone
             broken_zone = is_resistance ? 
-                high > box_id.get_top() : 
-                low < box_id.get_bottom()
+             high > box_id.get_top() : 
+             low < box_id.get_bottom()
             
             if broken_zone
                 box_id.set_right(bar_index)
@@ -181,13 +200,13 @@ update_liquidity_zones() =>
 
     // More pronounced gradient based on volume
     color_upper = color.new(
-        color_high_sup, 
-        math.max(5, 95 - volume_ * 9)
-        )
+     color_high_sup, 
+     math.max(5, 95 - volume_ * 9)
+     )
     color_lower = color.new(
-        color_high_res, 
-        math.max(5, 95 - volume_ * 9)
-        )
+     color_high_res, 
+     math.max(5, 95 - volume_ * 9)
+     )
     text_col = color.white
     
     // Set the label text based on liquidity level
@@ -205,49 +224,49 @@ update_liquidity_zones() =>
         // Create zones only if they're not low liquidity or if low liquidity display is enabled
         if volume_ >= alert_threshold_med or show_low_liquidity
             box1 = box.new(
-                bar_index[1], 
-                high[1] + _size[1], 
-                bar_index, 
-                high[1], 
-                bgcolor = color.rgb(0, 128, 128), 
-                border_color = color.rgb(91, 233, 72),
-                force_overlay = false
-                )
+             bar_index[1], 
+             high[1] + _size[1], 
+             bar_index, 
+             high[1], 
+             bgcolor = color.rgb(0, 128, 128), 
+             border_color = color.rgb(91, 233, 72),
+             force_overlay = false
+             )
             
             if volume_ >= alert_threshold_high
                 box1 := box.new(
-                    bar_index[1], 
-                    high[1] + _size[1], 
-                    bar_index, 
-                    high[1], 
-                    bgcolor = color_lower, 
-                    force_overlay = true
-                    )
+                 bar_index[1], 
+                 high[1] + _size[1], 
+                 bar_index, 
+                 high[1], 
+                 bgcolor = color_lower, 
+                 force_overlay = true
+                 )
             else if volume_ >= alert_threshold_med
                 box1 := box.new(
-                    bar_index[1], 
-                    high[1] + _size[1], 
-                    bar_index, 
-                    high[1], 
-                    bgcolor = color.new(color_high_res, 50), 
-                    force_overlay = false
-                    )
+                 bar_index[1], 
+                 high[1] + _size[1], 
+                 bar_index, 
+                 high[1], 
+                 bgcolor = color.new(color_high_res, 50), 
+                 force_overlay = false
+                 )
             else
                 box1 := box.new(
-                    bar_index[1], 
-                    high[1] + _size[1], 
-                    bar_index, 
-                    high[1], 
-                    bgcolor = color.new(color_high_res, 80), 
-                    force_overlay = false
-                    )
+                 bar_index[1], 
+                 high[1] + _size[1], 
+                 bar_index, 
+                 high[1], 
+                 bgcolor = color.new(color_high_res, 80), 
+                 force_overlay = false
+                 )
             
             box1.set_text(txt)
             box1.set_text_size(
-                volume_ >= alert_threshold_high ? size.large : 
-                volume_ >= alert_threshold_med ? size.normal : 
-                size.small
-                )
+             volume_ >= alert_threshold_high ? size.large : 
+             volume_ >= alert_threshold_med ? size.normal : 
+             size.small
+             )
             box1.set_text_halign(text.align_right)
             box1.set_text_color(text_col)
             
@@ -260,49 +279,49 @@ update_liquidity_zones() =>
         // Create zones only if they're not low liquidity or if low liquidity display is enabled
         if volume_ >= alert_threshold_med or show_low_liquidity
             box2 = box.new(
-                bar_index[1], 
-                low[1], 
-                bar_index, 
-                low[1] - _size[1], 
-                bgcolor = color.gray, 
-                border_color = color.rgb(242, 6, 104), 
-                force_overlay = false
-                )
+             bar_index[1], 
+             low[1], 
+             bar_index, 
+             low[1] - _size[1], 
+             bgcolor = color.gray, 
+             border_color = color.rgb(242, 6, 104), 
+             force_overlay = false
+             )
             
             if volume_ >= alert_threshold_high
                 box2 := box.new(
-                    bar_index[1], 
-                    low[1], 
-                    bar_index, 
-                    low[1] - _size[1], 
-                    bgcolor = color_upper, 
-                    force_overlay = true
-                    )
+                 bar_index[1], 
+                 low[1], 
+                 bar_index, 
+                 low[1] - _size[1], 
+                 bgcolor = color_upper, 
+                 force_overlay = true
+                 )
             else if volume_ >= alert_threshold_med
                 box2 := box.new(
-                    bar_index[1], 
-                    low[1], 
-                    bar_index, 
-                    low[1] - _size[1], 
-                    bgcolor = color.new(color_high_sup, 50), 
-                    force_overlay = false
-                    )
+                 bar_index[1], 
+                 low[1], 
+                 bar_index, 
+                 low[1] - _size[1], 
+                 bgcolor = color.new(color_high_sup, 50), 
+                 force_overlay = false
+                 )
             else
                 box2 := box.new(
-                    bar_index[1], 
-                    low[1], 
-                    bar_index, 
-                    low[1] - _size[1], 
-                    bgcolor = color.new(color_high_sup, 80), 
-                    force_overlay = false
-                    )
+                 bar_index[1], 
+                 low[1], 
+                 bar_index, 
+                 low[1] - _size[1], 
+                 bgcolor = color.new(color_high_sup, 80), 
+                 force_overlay = false
+                 )
             
             box2.set_text(txt)
             box2.set_text_size(
-                volume_ >= alert_threshold_high ? size.large : 
-                volume_ >= alert_threshold_med ? size.normal : 
-                size.small
-                )
+             volume_ >= alert_threshold_high ? size.large : 
+             volume_ >= alert_threshold_med ? size.normal : 
+             size.small
+             )
             box2.set_text_halign(text.align_right)
             box2.set_text_color(text_col)
             
@@ -354,43 +373,43 @@ if new_day
     // Create new lines if enabled
     if show_daily_levels
         day_high_line := line.new(
-            bar_index, 
-            day_high, 
-            bar_index + 1, 
-            day_high, 
-            color=daily_high_color, 
-            width=daily_level_width, 
-            style=line_style
-            )
+         bar_index, 
+         day_high, 
+         bar_index + 1, 
+         day_high, 
+         color=daily_high_color, 
+         width=daily_level_width, 
+         style=line_style
+         )
         day_low_line := line.new(
-            bar_index, 
-            day_low, 
-            bar_index + 1, 
-            day_low, 
-            color=daily_low_color, 
-            width=daily_level_width, 
-            style=line_style
-            )
+         bar_index, 
+         day_low, 
+         bar_index + 1, 
+         day_low, 
+         color=daily_low_color, 
+         width=daily_level_width, 
+         style=line_style
+         )
         
         // Create new labels
         day_high_label := label.new(
-            bar_index, 
-            day_high, 
-            "Day High", 
-            color=color.new(color.black, 100), 
-            style=label.style_label_down, 
-            textcolor=color.green, 
-            size=size.small
-            )
+         bar_index, 
+         day_high, 
+         "Day High", 
+         color=color.new(color.black, 100), 
+         style=label.style_label_down, 
+         textcolor=color.green, 
+         size=size.small
+         )
         day_low_label := label.new(
-            bar_index, 
-            day_low, 
-            "Day Low", 
-            color=color.new(color.black, 100), 
-            style=label.style_label_up, 
-            textcolor=color.red, 
-            size=size.small
-            )
+         bar_index, 
+         day_low, 
+         "Day Low", 
+         color=color.new(color.black, 100), 
+         style=label.style_label_up, 
+         textcolor=color.red, 
+         size=size.small
+         )
 else
     // Update daily high/low when broken
     if high > day_high
@@ -404,23 +423,23 @@ else
                 label.delete(day_high_label)
                 
             day_high_line := line.new(
-                bar_index, 
-                day_high, 
-                bar_index + 1, 
-                day_high, 
-                color=daily_high_color, 
-                width=daily_level_width, 
-                style=line_style
-                )
+             bar_index, 
+             day_high, 
+             bar_index + 1, 
+             day_high, 
+             color=daily_high_color, 
+             width=daily_level_width, 
+             style=line_style
+             )
             day_high_label := label.new(
-                bar_index, 
-                day_high, 
-                "Day High", 
-                color=color.new(color.black, 100), 
-                style=label.style_label_down, 
-                textcolor=color.green, 
-                size=size.small
-                )
+             bar_index, 
+             day_high, 
+             "Day High", 
+             color=color.new(color.black, 100), 
+             style=label.style_label_down, 
+             textcolor=color.green, 
+             size=size.small
+             )
     
     if low < day_low
         day_low := low
@@ -433,23 +452,23 @@ else
                 label.delete(day_low_label)
                 
             day_low_line := line.new(
-                bar_index, 
-                day_low, 
-                bar_index + 1, 
-                day_low, 
-                color=daily_low_color, 
-                width=daily_level_width, 
-                style=line_style
-                )
+             bar_index, 
+             day_low, 
+             bar_index + 1, 
+             day_low, 
+             color=daily_low_color, 
+             width=daily_level_width, 
+             style=line_style
+             )
             day_low_label := label.new(
-                bar_index, 
-                day_low, 
-                "Day Low", 
-                color=color.new(color.black, 100), 
-                style=label.style_label_up, 
-                textcolor=color.red, 
-                size=size.small
-                )
+             bar_index, 
+             day_low, 
+             "Day Low", 
+             color=color.new(color.black, 100), 
+             style=label.style_label_up, 
+             textcolor=color.red, 
+             size=size.small
+             )
 
 // Extend the lines to the current bar
 if show_daily_levels and not na(day_high_line) and not na(day_low_line)
@@ -475,21 +494,21 @@ price_in_support := in_support
 
 // Define alert conditions based on price being in zones and meeting liquidity thresholds
 resistance_alert = price_in_resistance and 
-    ((res_zone_level >= alert_threshold_high and alert_on_high) or 
-     (res_zone_level >= alert_threshold_med and res_zone_level < alert_threshold_high and alert_on_med)) and 
-    is_active_session()
+ ((res_zone_level >= alert_threshold_high and alert_on_high) or 
+ (res_zone_level >= alert_threshold_med and res_zone_level < alert_threshold_high and alert_on_med)) and 
+ is_active_session()
 
 support_alert = price_in_support and 
-    ((sup_zone_level >= alert_threshold_high and alert_on_high) or 
-     (sup_zone_level >= alert_threshold_med and sup_zone_level < alert_threshold_high and alert_on_med)) and 
-    is_active_session()
+ ((sup_zone_level >= alert_threshold_high and alert_on_high) or 
+ (sup_zone_level >= alert_threshold_med and sup_zone_level < alert_threshold_high and alert_on_med)) and 
+ is_active_session()
 
 // Combined alert for either support or resistance
 alertcondition(
-    (resistance_alert or support_alert) and is_active_session(), 
-    title="Price In Order Pool", 
-    message="Price has entered a significant Order Pool \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}"
-    )
+ (resistance_alert or support_alert) and is_active_session(), 
+ title="Price In Order Pool", 
+ message="Price has entered a significant Order Pool \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}"
+ )
 
 // Limit number of boxes displayed on the chart
 a_allBoxes = box.all
