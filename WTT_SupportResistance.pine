@@ -146,6 +146,10 @@ var bool price_in_support = false
 var bool was_in_resistance = false
 var bool was_in_support = false
 
+// Variables to store liquidity levels when price is inside zones
+var float stored_res_level = 0.0
+var float stored_sup_level = 0.0
+
 // Arrays to store boxes and their liquidity levels
 var box_res_array = array.new<box>()
 var box_sup_array = array.new<box>()
@@ -496,14 +500,32 @@ if show_daily_levels and not na(day_high_line) and not na(day_low_line)
 price_in_resistance := in_resistance
 price_in_support := in_support
 
+// Store liquidity levels when price is inside zones
+if price_in_resistance
+    stored_res_level := res_zone_level
+if price_in_support
+    stored_sup_level := sup_zone_level
+
 // Detect when price leaves resistance zones (was inside, now outside)
 leave_resistance = was_in_resistance and not price_in_resistance and 
-    ((res_zone_level >= alert_threshold_high and alert_on_high) or 
-     (res_zone_level >= alert_threshold_med and res_zone_level < alert_threshold_high and alert_on_med)) and 
+    ((stored_res_level >= alert_threshold_high and alert_on_high) or 
+     (stored_res_level >= alert_threshold_med and stored_res_level < alert_threshold_high and alert_on_med)) and 
     is_active_session()
 
 // Detect when price leaves support zones (was inside, now outside)
 leave_support = was_in_support and not price_in_support and 
+    ((stored_sup_level >= alert_threshold_high and alert_on_high) or 
+     (stored_sup_level >= alert_threshold_med and stored_sup_level < alert_threshold_high and alert_on_med)) and 
+    is_active_session()
+
+// Detect when price first enters resistance zones (was outside, now inside)
+enter_resistance = not was_in_resistance and price_in_resistance and 
+    ((res_zone_level >= alert_threshold_high and alert_on_high) or 
+     (res_zone_level >= alert_threshold_med and res_zone_level < alert_threshold_high and alert_on_med)) and 
+    is_active_session()
+
+// Detect when price first enters support zones (was outside, now inside)
+enter_support = not was_in_support and price_in_support and 
     ((sup_zone_level >= alert_threshold_high and alert_on_high) or 
      (sup_zone_level >= alert_threshold_med and sup_zone_level < alert_threshold_high and alert_on_med)) and 
     is_active_session()
@@ -523,10 +545,10 @@ support_alert = price_in_support and
  (sup_zone_level >= alert_threshold_med and sup_zone_level < alert_threshold_high and alert_on_med)) and 
  is_active_session()
 
-// Combined alert for either support or resistance
+// Combined alert for when price first enters either support or resistance zones
 alertcondition(
- (resistance_alert or support_alert) and is_active_session(), 
- title="Price In Order Pool", 
+ (enter_resistance or enter_support) and is_active_session(), 
+ title="Price Entered Order Pool", 
  message="Price has entered a significant Order Pool \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}"
  )
 
