@@ -142,6 +142,10 @@ normalize_volume() =>
 var bool price_in_resistance = false
 var bool price_in_support = false
 
+// Variables to track previous price position relative to zones
+var bool was_in_resistance = false
+var bool was_in_support = false
+
 // Arrays to store boxes and their liquidity levels
 var box_res_array = array.new<box>()
 var box_sup_array = array.new<box>()
@@ -492,6 +496,22 @@ if show_daily_levels and not na(day_high_line) and not na(day_low_line)
 price_in_resistance := in_resistance
 price_in_support := in_support
 
+// Detect when price leaves resistance zones (was inside, now outside)
+leave_resistance = was_in_resistance and not price_in_resistance and 
+    ((res_zone_level >= alert_threshold_high and alert_on_high) or 
+     (res_zone_level >= alert_threshold_med and res_zone_level < alert_threshold_high and alert_on_med)) and 
+    is_active_session()
+
+// Detect when price leaves support zones (was inside, now outside)
+leave_support = was_in_support and not price_in_support and 
+    ((sup_zone_level >= alert_threshold_high and alert_on_high) or 
+     (sup_zone_level >= alert_threshold_med and sup_zone_level < alert_threshold_high and alert_on_med)) and 
+    is_active_session()
+
+// Update previous position variables for next bar
+was_in_resistance := price_in_resistance
+was_in_support := price_in_support
+
 // Define alert conditions based on price being in zones and meeting liquidity thresholds
 resistance_alert = price_in_resistance and 
  ((res_zone_level >= alert_threshold_high and alert_on_high) or 
@@ -508,6 +528,27 @@ alertcondition(
  (resistance_alert or support_alert) and is_active_session(), 
  title="Price In Order Pool", 
  message="Price has entered a significant Order Pool \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}"
+ )
+
+// Alert for leaving resistance zones
+alertcondition(
+ leave_resistance,
+ title="Price Left Resistance Zone", 
+ message="Price has left a significant resistance zone \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}"
+ )
+
+// Alert for leaving support zones
+alertcondition(
+ leave_support,
+ title="Price Left Support Zone", 
+ message="Price has left a significant support zone \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}"
+ )
+
+// Combined alert for leaving either support or resistance zones
+alertcondition(
+ leave_resistance or leave_support,
+ title="Price Left Order Pool", 
+ message="Price has left a significant Order Pool \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}"
  )
 
 // Limit number of boxes displayed on the chart
