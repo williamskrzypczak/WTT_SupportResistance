@@ -31,20 +31,7 @@ indicator('WTT_Support/Resistance R1.2', overlay = true, max_boxes_count = 500, 
 //
 
 // Market Session Settings
-show_session_filter = input.bool(true, "Filter Alerts by Market Sessions", group = "Market Sessions")
-show_ln_overlap = input.bool(true, "London/New York Overlap", group = "Market Sessions")
-show_st_overlap = input.bool(true, "Sydney/Tokyo Overlap", group = "Market Sessions")
-
-// Customizable Overlap Times (in EST)
-ln_overlap_start_hour = input.int(8, "London/NY Overlap Start Hour (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="Start hour for London/NY overlap (0-23)")
-ln_overlap_start_min = input.int(0, "London/NY Overlap Start Minute (EST)", minval=0, maxval=45, step=15, group="Market Sessions", tooltip="Start minute for London/NY overlap (0, 15, 30, 45)")
-ln_overlap_end_hour = input.int(11, "London/NY Overlap End Hour (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="End hour for London/NY overlap (0-23)")
-ln_overlap_end_min = input.int(0, "London/NY Overlap End Minute (EST)", minval=0, maxval=45, step=15, group="Market Sessions", tooltip="End minute for London/NY overlap (0, 15, 30, 45)")
-
-st_overlap_start_hour = input.int(20, "Sydney/Tokyo Overlap Start Hour (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="Start hour for Sydney/Tokyo overlap (0-23)")
-st_overlap_start_min = input.int(0, "Sydney/Tokyo Overlap Start Minute (EST)", minval=0, maxval=45, step=15, group="Market Sessions", tooltip="Start minute for Sydney/Tokyo overlap (0, 15, 30, 45)")
-st_overlap_end_hour = input.int(3, "Sydney/Tokyo Overlap End Hour (EST)", minval=0, maxval=23, group="Market Sessions", tooltip="End hour for Sydney/Tokyo overlap (0-23)")
-st_overlap_end_min = input.int(0, "Sydney/Tokyo Overlap End Minute (EST)", minval=0, maxval=45, step=15, group="Market Sessions", tooltip="End minute for Sydney/Tokyo overlap (0, 15, 30, 45)")
+filter_by_trading_hours = input.bool(true, "Filter Alerts by Trading Hours (7:45 AM - 10 AM CST & 7 PM - 11 PM CST)", group = "Trading Hours", tooltip="When enabled, alerts only trigger during specified trading hours")
 
 box_amount = input.int(125, 'Amount', step = 10, tooltip = "Set the displayed amount of liquidity zones")
 color_high_sup = input.color(color.gray, '↑', inline = 'sup', group = 'Color')  // Changed to a grayer purple/blue
@@ -72,61 +59,33 @@ daily_level_style = input.string("Dashed", "Line Style", options=["Solid", "Dash
 // ---- FUNCTION DEFINITIONS ----
 //
 
-// Market session detection functions
-is_london_session() =>
-    hour = hour(time, "UTC-4")  // EST timezone
-    minute = minute(time, "UTC-4")
-    result = hour >= 3 and hour < 12
-    result
-
-is_ny_session() =>
-    hour = hour(time, "UTC-4")  // EST timezone
-    minute = minute(time, "UTC-4")
-    result = hour >= 8 and hour < 17
-    result
-
-is_london_ny_overlap() =>
-    hour = hour(time, "UTC-4")  // EST timezone
-    minute = minute(time, "UTC-4")
+// Simple trading hours filter (7:45 AM - 10 AM CST & 7 PM - 11 PM CST)
+is_trading_hours() =>
+    hour = hour(time, "UTC-6")  // CST timezone
+    minute = minute(time, "UTC-6")
     current_time = hour * 60 + minute
-    start_time = ln_overlap_start_hour * 60 + ln_overlap_start_min
-    end_time = ln_overlap_end_hour * 60 + ln_overlap_end_min
     
-    result = end_time > start_time ? 
-     (current_time >= start_time and current_time < end_time) : 
-     (current_time >= start_time or current_time < end_time)
-    result
-
-is_sydney_session() =>
-    hour = hour(time, "UTC-4")  // EST timezone
-    minute = minute(time, "UTC-4")
-    result = hour >= 18 or hour < 3
-    result
-
-is_tokyo_session() =>
-    hour = hour(time, "UTC-4")  // EST timezone
-    minute = minute(time, "UTC-4")
-    result = hour >= 19 or hour < 4
-    result
-
-is_sydney_tokyo_overlap() =>
-    hour = hour(time, "UTC-4")  // EST timezone
-    minute = minute(time, "UTC-4")
-    current_time = hour * 60 + minute
-    start_time = st_overlap_start_hour * 60 + st_overlap_start_min
-    end_time = st_overlap_end_hour * 60 + st_overlap_end_min
+    // Morning session: 7:45 AM - 10 AM CST (7*60+45 = 465 to 10*60 = 600)
+    morning_start = 7 * 60 + 45  // 7:45 AM
+    morning_end = 10 * 60        // 10:00 AM
     
-    result = end_time > start_time ? 
-     (current_time >= start_time and current_time < end_time) : 
-     (current_time >= start_time or current_time < end_time)
+    // Evening session: 7 PM - 11 PM CST (19*60 = 1140 to 23*60 = 1380)
+    evening_start = 19 * 60      // 7:00 PM
+    evening_end = 23 * 60        // 11:00 PM
+    
+    // Check if current time falls within either session
+    in_morning = current_time >= morning_start and current_time < morning_end
+    in_evening = current_time >= evening_start and current_time < evening_end
+    
+    result = in_morning or in_evening
     result
 
+// Check if alerts should be active based on trading hours filter
 is_active_session() =>
-    result = if not show_session_filter
+    result = if not filter_by_trading_hours
         true
     else
-        (show_ln_overlap and is_london_ny_overlap()) or 
-     (show_st_overlap and is_sydney_tokyo_overlap())
+        is_trading_hours()
     result
 
 // Normalize volume
@@ -418,6 +377,7 @@ if new_day
          textcolor=color.red, 
          size=size.small
          )
+
 else
     // Update daily high/low when broken
     if high > day_high
