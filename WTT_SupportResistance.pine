@@ -1,10 +1,12 @@
 //=====================================================================================================================
 //
-// WTT_Support/Resistance R1.2 © William Skrzypczak 2025
+// WTT_Support/Resistance R1.3 © William Skrzypczak 2025
 // Modified to include alert conditions for medium and high liquidity zones
 // Additional modification to toggle low liquidity zones on/off
 // NEW: Alerts now trigger when price enters existing liquidity zones
 // NEW: Added daily highest high and lowest low indicators
+// NEW: Simplified time filtering with single on/off toggle for trading hours
+// NEW: Cleaned up unused session code and fixed syntax errors
 //
 // ====================================================================================================================
 
@@ -17,14 +19,17 @@
 // The modified version includes configurable alert conditions that notify traders when price enters medium or high 
 // liquidity zones, making it easier to act on potential reversal or continuation signals. These alerts can be customized 
 // based on volume thresholds and can trigger separately for resistance zones (at price highs) or support zones (at price lows).
+// A simple trading hours filter allows alerts to be limited to active market hours (7:45 AM - 10 AM CST & 7 PM - 11 PM CST) or run 24/7.
 
 // The indicator helps traders identify key price levels where the market is likely to react, potentially improving entry 
 // and exit points for trades.
 
 // NEW: Now includes daily highest high and lowest low indicators to provide additional reference points for intraday trading.
+// NEW: Simplified time filtering system with single on/off toggle for trading hours.
+// NEW: Cleaned up unused session code and fixed syntax errors for improved performance and maintainability.
 
 //@version=5
-indicator('WTT_Support/Resistance R1.2', overlay = true, max_boxes_count = 500, max_labels_count = 500)
+indicator('WTT_Support/Resistance R1.3', overlay = true, max_boxes_count = 500, max_labels_count = 500)
 
 //
 // ---- USER INPUTS ----
@@ -377,7 +382,6 @@ if new_day
          textcolor=color.red, 
          size=size.small
          )
-
 else
     // Update daily high/low when broken
     if high > day_high
@@ -468,27 +472,27 @@ if price_in_support
 
 // Detect when price leaves resistance zones (was inside, now outside)
 leave_resistance = was_in_resistance and not price_in_resistance and 
-    ((stored_res_level >= alert_threshold_high and alert_on_high) or 
-     (stored_res_level >= alert_threshold_med and stored_res_level < alert_threshold_high and alert_on_med)) and 
-    is_active_session()
+ ((stored_res_level >= alert_threshold_high and alert_on_high) or 
+ (stored_res_level >= alert_threshold_med and stored_res_level < alert_threshold_high and alert_on_med)) and 
+ is_active_session()
 
 // Detect when price leaves support zones (was inside, now outside)
 leave_support = was_in_support and not price_in_support and 
-    ((stored_sup_level >= alert_threshold_high and alert_on_high) or 
-     (stored_sup_level >= alert_threshold_med and stored_sup_level < alert_threshold_high and alert_on_med)) and 
-    is_active_session()
+ ((stored_sup_level >= alert_threshold_high and alert_on_high) or 
+ (stored_sup_level >= alert_threshold_med and stored_sup_level < alert_threshold_high and alert_on_med)) and 
+ is_active_session()
 
 // Detect when price first enters resistance zones (was outside, now inside)
 enter_resistance = not was_in_resistance and price_in_resistance and 
-    ((res_zone_level >= alert_threshold_high and alert_on_high) or 
-     (res_zone_level >= alert_threshold_med and res_zone_level < alert_threshold_high and alert_on_med)) and 
-    is_active_session()
+ ((res_zone_level >= alert_threshold_high and alert_on_high) or 
+ (res_zone_level >= alert_threshold_med and res_zone_level < alert_threshold_high and alert_on_med)) and 
+ is_active_session()
 
 // Detect when price first enters support zones (was outside, now inside)
 enter_support = not was_in_support and price_in_support and 
-    ((sup_zone_level >= alert_threshold_high and alert_on_high) or 
-     (sup_zone_level >= alert_threshold_med and sup_zone_level < alert_threshold_high and alert_on_med)) and 
-    is_active_session()
+ ((sup_zone_level >= alert_threshold_high and alert_on_high) or 
+ (sup_zone_level >= alert_threshold_med and sup_zone_level < alert_threshold_high and alert_on_med)) and 
+ is_active_session()
 
 // Update previous position variables for next bar
 was_in_resistance := price_in_resistance
