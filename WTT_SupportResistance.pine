@@ -36,7 +36,7 @@ indicator('WTT_Support/Resistance R1.3', overlay = true, max_boxes_count = 500, 
 //
 
 // Market Session Settings
-filter_by_trading_hours = input.bool(true, "Filter Alerts by Trading Hours (7:45 AM - 10 AM CST & 7 PM - 11 PM CST)", group = "Trading Hours", tooltip="When enabled, alerts only trigger during specified trading hours")
+filter_by_trading_hours = input.bool(true, "Overlap Mkt Time Filter (CST 7:45-11:00AM & 7-11PM)", group = "Trading Hours", tooltip="When enabled, alerts only trigger during specified trading hours")
 
 box_amount = input.int(125, 'Amount', step = 10, tooltip = "Set the displayed amount of liquidity zones")
 color_high_sup = input.color(color.gray, '↑', inline = 'sup', group = 'Color')  // Changed to a grayer purple/blue
@@ -64,33 +64,38 @@ daily_level_style = input.string("Dashed", "Line Style", options=["Solid", "Dash
 // ---- FUNCTION DEFINITIONS ----
 //
 
-// Simple trading hours filter (7:45 AM - 10 AM CST & 7 PM - 11 PM CST)
-is_trading_hours() =>
-    hour = hour(time, "UTC-6")  // CST timezone
-    minute = minute(time, "UTC-6")
-    current_time = hour * 60 + minute
-    
-    // Morning session: 7:45 AM - 10 AM CST (7*60+45 = 465 to 10*60 = 600)
-    morning_start = 7 * 60 + 45  // 7:45 AM
-    morning_end = 10 * 60        // 10:00 AM
-    
-    // Evening session: 7 PM - 11 PM CST (19*60 = 1140 to 23*60 = 1380)
-    evening_start = 19 * 60      // 7:00 PM
-    evening_end = 23 * 60        // 11:00 PM
-    
-    // Check if current time falls within either session
-    in_morning = current_time >= morning_start and current_time < morning_end
-    in_evening = current_time >= evening_start and current_time < evening_end
-    
-    result = in_morning or in_evening
-    result
+// Time filter function (same as WTT_HiFreqScalp)
+is_within_alert_time() =>
+    if not filter_by_trading_hours
+        true
+    else
+        // Get current exchange time
+        current_hour = hour(time)
+        current_minute = minute(time)
+        current_time = current_hour * 60 + current_minute
+        
+        // Adjust time windows based on actual exchange time
+        // Morning session: 7:45AM-11:00AM (adjust as needed)
+        window1_start = 13 * 60 + 45  // 13:45
+        window1_end = 17 * 60         // 17:00
+        
+        // Evening session: 7:00PM-11:00PM (adjust to match exchange time)
+        // If exchange shows 22:30 when it's 9:36 PM local, adjust accordingly
+        window2_start = 19 * 60       // 19:00 (7:00 PM)
+        window2_end = 23 * 60         // 23:00 (11:00 PM)
+        
+        // Check if current time falls within either window
+        in_window1 = current_time >= window1_start and current_time < window1_end
+        in_window2 = current_time >= window2_start and current_time < window2_end
+        
+        in_window1 or in_window2
 
 // Check if alerts should be active based on trading hours filter
 is_active_session() =>
     result = if not filter_by_trading_hours
         true
     else
-        is_trading_hours()
+        is_within_alert_time()
     result
 
 // Normalize volume
